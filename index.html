@@ -1,0 +1,573 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>駅ちか名店マップ</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Shippori+Mincho+B1:wght@600;800&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap">
+<style>
+:root{
+  --ground:#F3F5F4; --panel:#FFFFFF; --ink:#1B2528; --muted:#5E6B70; --line:#DCE2E1;
+  --accent:#27466E; --accent-soft:#E4EAF3; --gold:#9A6B00; --gold-soft:#FBF1D9;
+  --chip:#EDF0EF; --shadow:0 1px 2px rgba(20,30,35,.06),0 4px 16px rgba(20,30,35,.06);
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --ground:#11181B; --panel:#182226; --ink:#E6ECEC; --muted:#9AA8AC; --line:#2A373C;
+    --accent:#8FB0DC; --accent-soft:#223249; --gold:#E7BC57; --gold-soft:#3A2F14;
+    --chip:#222E33; --shadow:0 1px 2px rgba(0,0,0,.3),0 4px 16px rgba(0,0,0,.25);
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --ground:#11181B; --panel:#182226; --ink:#E6ECEC; --muted:#9AA8AC; --line:#2A373C;
+  --accent:#8FB0DC; --accent-soft:#223249; --gold:#E7BC57; --gold-soft:#3A2F14;
+  --chip:#222E33; --shadow:0 1px 2px rgba(0,0,0,.3),0 4px 16px rgba(0,0,0,.25);
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{background:var(--ground);color:var(--ink);font:14px/1.6 "Zen Kaku Gothic New","Hiragino Sans","Yu Gothic",system-ui,sans-serif;display:flex;flex-direction:column}
+button{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+header{padding:12px 16px 10px;border-bottom:1px solid var(--line);background:var(--panel);display:flex;flex-direction:column;gap:8px}
+.brand{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+h1{font:800 22px/1.2 "Shippori Mincho B1","Hiragino Mincho ProN",serif;margin:0;letter-spacing:.04em}
+.brand small{color:var(--muted);font-size:12px}
+.row{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.row-label{font-size:11px;letter-spacing:.12em;color:var(--muted);width:3.2em;flex:none}
+.chip{border:1px solid var(--line);background:var(--chip);border-radius:999px;padding:3px 11px;font-size:13px;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
+.chip:hover{border-color:var(--accent)}
+.chip[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--panel)}
+.area-grp{display:inline-flex;align-items:center;gap:4px;flex-wrap:wrap;padding-right:6px;margin-right:2px;border-right:1px solid var(--line)}
+.area-grp:last-child{border-right:none}
+.area-tag{font-size:11px;color:var(--muted);letter-spacing:.08em;padding:0 2px 0 4px}
+.dot{width:8px;height:8px;border-radius:50%;flex:none}
+
+main{flex:1;display:grid;grid-template-columns:400px 1fr;min-height:0}
+#side{border-right:1px solid var(--line);background:var(--panel);overflow:auto;min-height:0;position:relative}
+#map{min-height:0;background:var(--ground)}
+.list-head{padding:14px 16px 6px;display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.list-head h2{font:800 17px/1.3 "Shippori Mincho B1",serif;margin:0;text-wrap:balance}
+.list-head span{color:var(--muted);font-size:12px;white-space:nowrap}
+ol{list-style:none;margin:0;padding:0 8px 12px}
+.item{display:grid;grid-template-columns:30px 1fr auto;gap:10px;align-items:start;padding:10px 8px;border-radius:8px;cursor:pointer;border:1px solid transparent}
+.item:hover,.item.active{background:var(--accent-soft)}
+.rank{font:800 18px/1.2 "Shippori Mincho B1",serif;color:var(--muted);text-align:center;font-variant-numeric:tabular-nums}
+.item:nth-child(-n+3) .rank{color:var(--gold)}
+.name{font-weight:700;font-size:15px;line-height:1.35}
+.meta{color:var(--muted);font-size:12px;display:flex;gap:4px 10px;flex-wrap:wrap;margin-top:2px}
+.score{font-variant-numeric:tabular-nums;font-weight:700;font-size:16px;text-align:right;line-height:1.2}
+.score small{display:block;font-weight:400;font-size:10px;color:var(--muted);letter-spacing:.05em}
+.score.na{font-size:12px;color:var(--muted);font-weight:500}
+.empty{padding:24px 16px;color:var(--muted)}
+.note{margin:4px 16px 18px;padding:10px 12px;border-radius:8px;background:var(--chip);font-size:12px;color:var(--muted)}
+.note b{color:var(--ink)}
+
+#detail{position:absolute;inset:0;background:var(--panel);overflow:auto;padding:14px 16px 24px}
+.back{border:none;background:none;color:var(--accent);cursor:pointer;padding:4px 0;font-size:13px}
+.d-genre{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);margin-top:8px}
+.d-name{font:800 24px/1.3 "Shippori Mincho B1",serif;margin:4px 0 10px;text-wrap:balance}
+.facts{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;margin:0 0 14px;font-size:13px}
+.facts dt{color:var(--muted);font-size:12px;letter-spacing:.06em}
+.facts dd{margin:0;font-variant-numeric:tabular-nums}
+.badge{display:inline-block;background:var(--gold-soft);color:var(--gold);border-radius:4px;padding:1px 7px;font-size:12px;font-weight:700}
+.summary{border-left:3px solid var(--accent);padding:4px 0 4px 12px;margin:0 0 16px}
+.summary h3,.links h3{font-size:11px;letter-spacing:.14em;color:var(--muted);margin:0 0 4px;font-weight:500}
+.summary p{margin:0}
+.links{display:flex;flex-direction:column;gap:8px}
+.btns{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.btn{display:flex;align-items:center;justify-content:center;gap:6px;text-decoration:none;color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:9px 8px;font-size:13px;text-align:center;background:var(--panel)}
+.btn:hover{border-color:var(--accent);color:var(--accent)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--panel);grid-column:1/-1;font-weight:700}
+.btn.primary:hover{color:var(--panel);opacity:.9}
+.fine{font-size:11px;color:var(--muted);margin-top:10px}
+
+.pin{width:28px;height:28px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);display:grid;place-items:center;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.35)}
+.pin span{transform:rotate(45deg);color:#fff;font:700 12px/1 "Zen Kaku Gothic New",sans-serif}
+.pin.sel{outline:3px solid var(--gold);outline-offset:1px}
+.st-label{background:var(--ink);color:var(--panel);font:700 12px/1 "Zen Kaku Gothic New",sans-serif;padding:4px 7px;border-radius:4px;white-space:nowrap;box-shadow:var(--shadow)}
+.leaflet-container{font-family:inherit}
+.tiles-light{filter:saturate(.55) contrast(.95)}
+.tiles-dark{filter:invert(1) hue-rotate(180deg) brightness(.85) saturate(.4)}
+.leaflet-tooltip{font-family:inherit}
+
+@media (max-width:820px){
+  main{grid-template-columns:1fr;grid-template-rows:46vh auto}
+  #map{grid-row:1}
+  #side{grid-row:2;border-right:none;border-top:1px solid var(--line);overflow:visible}
+  #detail{position:static}
+  body{height:auto}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">
+    <h1>駅ちか名店マップ</h1>
+    <small>東京23区・主要駅から徒歩圏の高評価店</small>
+  </div>
+  <div class="row" id="stationRow"><span class="row-label">駅</span></div>
+  <div class="row" id="genreRow"><span class="row-label">料理</span></div>
+  <div class="row" id="budgetRow"><span class="row-label">予算</span></div>
+</header>
+<main>
+  <section id="side">
+    <div id="listView">
+      <div class="list-head"><h2 id="listTitle"></h2><span id="listCount"></span></div>
+      <ol id="list"></ol>
+      <div class="note">
+        <b>データについて</b><br>
+        スコアは食べログ「百名店」各ジャンル発表時点（主に2025年）の値です。予算は夜の1人あたりの目安で、店の価格帯から推定しています。地図上の位置はおおよそで、正確な場所はGoogleマップのリンクで確認してください。訪問前に営業状況と予約方法を必ず確認してください。
+      </div>
+    </div>
+    <div id="detail" hidden></div>
+  </section>
+  <div id="map" role="region" aria-label="地図"></div>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+const STATIONS = [
+  {id:'tokyo',   name:'東京',     lat:35.6812, lng:139.7671},
+  {id:'ginza',   name:'銀座',     lat:35.6717, lng:139.7650},
+  {id:'shimbashi',name:'新橋',    lat:35.6663, lng:139.7583},
+  {id:'roppongi',name:'六本木',   lat:35.6628, lng:139.7314},
+  {id:'shibuya', name:'渋谷',     lat:35.6580, lng:139.7016},
+  {id:'ebisu',   name:'恵比寿',   lat:35.6467, lng:139.7101},
+  {id:'sancha',  name:'三軒茶屋', lat:35.6436, lng:139.6700},
+  {id:'shimokita',name:'下北沢',  lat:35.6613, lng:139.6680},
+  {id:'shinjuku', name:'新宿',     lat:35.6896, lng:139.7006},
+  {id:'ikebukuro',name:'池袋',     lat:35.7295, lng:139.7109},
+  {id:'asakusa',  name:'浅草',     lat:35.7111, lng:139.7967},
+  {id:'ueno',     name:'上野',     lat:35.7138, lng:139.7773},
+  {id:'ningyocho',name:'人形町',   lat:35.6862, lng:139.7823},
+  {id:'monnaka',  name:'門前仲町', lat:35.6716, lng:139.7958},
+  {id:'nakameguro',name:'中目黒',  lat:35.6443, lng:139.6989},
+  {id:'meguro',   name:'目黒',     lat:35.6337, lng:139.7157},
+  {id:'gakudai',  name:'学芸大学', lat:35.6286, lng:139.6851},
+  {id:'jiyugaoka',name:'自由が丘', lat:35.6076, lng:139.6687},
+  {id:'futako',   name:'二子玉川', lat:35.6117, lng:139.6267},
+];
+const AREAS = [
+  {name:'都心',     ids:['tokyo','ginza','shimbashi','roppongi','ningyocho']},
+  {name:'副都心',   ids:['shibuya','ebisu','shinjuku','ikebukuro']},
+  {name:'下町',     ids:['asakusa','ueno','monnaka']},
+  {name:'世田谷',   ids:['sancha','shimokita','futako']},
+  {name:'目黒',     ids:['nakameguro','meguro','gakudai','jiyugaoka']},
+];
+const GENRES = [
+  {id:'all',     name:'総合',          color:'#27466E'},
+  {id:'sushi',   name:'寿司',          color:'#C0392B', hy:'寿司 TOKYO 百名店 2025'},
+  {id:'washoku', name:'日本料理',      color:'#7A5230', hy:'日本料理 TOKYO 百名店 2025'},
+  {id:'tempura', name:'天ぷら',        color:'#C98A0B', hy:'天ぷら 百名店 2025'},
+  {id:'unagi',   name:'うなぎ',        color:'#4E4A2E', hy:'うなぎ 百名店 2024'},
+  {id:'katsu',   name:'とんかつ・洋食', color:'#B5651D', hy:'とんかつ 百名店 2026 / 洋食 百名店 2025'},
+  {id:'yakitori',name:'焼鳥',          color:'#D35400', hy:'焼き鳥 EAST 百名店 2025'},
+  {id:'yakiniku',name:'焼肉',          color:'#8E2C48', hy:'焼肉 TOKYO 百名店 2025'},
+  {id:'french',  name:'フレンチ',      color:'#2E5E9E', hy:'フレンチ TOKYO 百名店 2025'},
+  {id:'italian', name:'イタリアン・ピッツァ', color:'#2F7D4F', hy:'イタリアン TOKYO / ピザ 百名店 2025'},
+  {id:'ramen',   name:'ラーメン',      color:'#6C3FA0', hy:'ラーメン TOKYO 百名店 2025'},
+  {id:'curry',   name:'カレー',        color:'#A0522D', hy:'カレー TOKYO 百名店 2026'},
+];
+const BUDGETS = [
+  {id:'any', name:'指定なし', max:Infinity},
+  {id:'10k', name:'〜1万円',  max:10000},
+  {id:'30k', name:'〜3万円',  max:30000},
+];
+
+// [名前, ジャンル, 緯度, 経度, 食べログ, 予算下限, 予算上限, 地区, 評価のポイント, 公式URL]
+const RAW = [
+  // 寿司
+  ['日本橋蛎殻町 すぎた','sushi',35.6822,139.7822,4.61,40000,50000,'日本橋蛎殻町','寿司百名店のなかでも最上位の評価。穏やかな仕事ぶりとつまみ・握りの流れに定評があり、予約は非常に困難。'],
+  ['鮨 さいとう','sushi',35.6664,139.7398,4.60,40000,60000,'六本木一丁目','東京で最も予約が取りにくい鮨店の一つ。常連の紹介なしでの予約はほぼ不可能とされる。'],
+  ['鮨 一幸','sushi',35.6705,139.7648,4.59,35000,50000,'銀座','銀座の寿司百名店で最高クラスの評価。'],
+  ['鮨 あらい','sushi',35.6690,139.7625,4.58,30000,45000,'銀座','「すし 久兵衛」出身の新井祐一氏の店。まっすぐな江戸前の握りと明るい接客で人気。'],
+  ['さわ田','sushi',35.6727,139.7680,4.51,40000,55000,'銀座','少人数のカウンターで丁寧な仕事を味わう老舗の高級店。'],
+  ['鮨 なんば 日比谷','sushi',35.6737,139.7592,4.51,30000,45000,'有楽町・日比谷','阿佐ヶ谷の名店の日比谷店。東京ミッドタウン日比谷内でアクセスが良い。'],
+  ['すし 良月','sushi',35.6478,139.7133,4.48,30000,45000,'恵比寿','恵比寿エリアで最も評価の高い寿司店。'],
+  ['鮨 めい乃','sushi',35.6555,139.7355,4.45,30000,45000,'麻布十番','麻布十番の高評価店。'],
+  ['鮨 はしもと','sushi',35.6718,139.7735,4.45,30000,45000,'新富町','銀座の東、新富町の実力店。'],
+  ['鮨しゅんじ','sushi',35.6560,139.7295,4.38,30000,45000,'元麻布','元麻布の住宅街にある高評価店。'],
+  ['鮨 陸','sushi',35.6515,139.7185,4.36,30000,45000,'広尾','広尾の高評価店。'],
+  ['青空','sushi',35.6686,139.7612,4.35,30000,45000,'銀座','「はるたか」の名でも知られる銀座の人気店。'],
+  ['鮨 西崎','sushi',35.6630,139.6685,4.32,25000,40000,'下北沢','下北沢エリアで屈指の評価を持つ寿司店。'],
+  ['千葉たかおか','sushi',35.6795,139.7705,4.31,25000,40000,'八重洲','東京駅八重洲口から近い高評価店。'],
+  ['新ばし しみづ','sushi',35.6655,139.7570,4.27,25000,40000,'新橋','赤酢のシャリの江戸前で知られる新橋の名店。'],
+  ['鮨 よしたけ','sushi',35.6692,139.7603,4.22,35000,50000,'銀座8丁目','香港にも出店する吉武正博氏の店。'],
+  ['小笹寿し 代沢','sushi',35.6585,139.6710,3.98,15000,30000,'下北沢・代沢','銀座の老舗「小笹寿し」の流れをくむ店。下北沢から歩ける。'],
+  ['すきやばし 次郎 本店','sushi',35.6721,139.7637,3.86,40000,60000,'銀座','小野二郎氏の店。おまかせのみ。映画『二郎は鮨の夢を見る』で世界的に知られる。','https://www.sushi-jiro.jp/'],
+  ['新橋鶴八','sushi',35.6665,139.7545,3.83,20000,35000,'新橋','正統派の江戸前寿司。新橋のカウンター名店。'],
+  ['あじゅう田','sushi',35.6618,139.6980,3.78,15000,30000,'渋谷・宇田川町','渋谷駅から徒歩圏の寿司百名店。'],
+  // 日本料理
+  ['新ばし 星野','washoku',35.6660,139.7555,4.63,30000,45000,'新橋','日本料理百名店で最高クラスの評価。季節の椀物に定評。予約は困難。'],
+  ['銀座 しのはら','washoku',35.6718,139.7655,4.56,35000,50000,'銀座','滋賀出身の篠原武将氏の店。土鍋ご飯や季節の一皿が人気。'],
+  ['明寂','washoku',35.6590,139.7235,4.42,30000,45000,'西麻布','西麻布の高評価割烹。'],
+  ['山﨑','washoku',35.6582,139.7250,4.41,30000,45000,'西麻布','西麻布の高評価店。'],
+  ['味享','washoku',35.6680,139.7525,4.39,25000,40000,'西新橋','新橋・虎ノ門寄りの高評価店。'],
+  ['銀座 きた川','washoku',35.6700,139.7640,4.35,30000,45000,'銀座','銀座の高評価割烹。'],
+  ['感情','washoku',35.6632,139.7330,4.27,30000,45000,'六本木','六本木駅近くの高評価店。'],
+  ['鈴田式','washoku',35.6598,139.7228,4.22,30000,45000,'西麻布','西麻布の高評価店。'],
+  ['割烹 室井','washoku',35.6575,139.7240,4.18,25000,40000,'西麻布','西麻布の割烹。銀座に「麻布室井」もある。'],
+  ['麻布室井','washoku',35.6695,139.7630,4.15,25000,40000,'銀座','銀座にある割烹。'],
+  ['龍吟','washoku',35.6739,139.7590,4.13,50000,70000,'日比谷','山本征治氏の日本料理店。東京ミッドタウン日比谷7階。','https://www.nihonryori-ryugin.com/'],
+  ['日本料理 山崎','washoku',35.6770,139.7710,4.09,25000,40000,'京橋','東京駅から歩ける京橋の日本料理店。'],
+  ['麻布 かどわき','washoku',35.6560,139.7345,4.05,35000,50000,'麻布十番','トリュフ土鍋ご飯で知られる門脇俊哉氏の店。'],
+  ['新ばし 笹田','washoku',35.6672,139.7530,3.89,20000,35000,'西新橋','新橋の日本料理百名店。'],
+  ['松蔭鶴水','washoku',35.6440,139.6600,3.85,15000,25000,'若林（三軒茶屋）','三軒茶屋から歩ける世田谷の日本料理百名店。'],
+  ['恵比寿 くろいわ','washoku',35.6470,139.7120,3.75,20000,30000,'恵比寿','恵比寿の日本料理百名店。'],
+  // 天ぷら
+  ['日本橋 蕎ノ字','tempura',35.6840,139.7745,4.45,20000,35000,'日本橋','天ぷらと蕎麦のコース。天ぷら百名店で最上位クラス。'],
+  ['天ぷら浅沼','tempura',35.6860,139.7800,4.43,25000,40000,'日本橋','三越前・人形町から徒歩圏。記念日利用の多い人気店。','https://www.tempura-asanuma.com/'],
+  ['てんぷら 深町','tempura',35.6770,139.7695,4.06,20000,30000,'京橋','「山の上ホテル」出身の深町正男氏の店。軽い衣で素材を活かす。'],
+  ['天 よこた','tempura',35.6555,139.7310,4.03,20000,35000,'元麻布','麻布十番駅から徒歩7分。季節の江戸前天ぷらコース。','https://www.ten-yokota.com/'],
+  ['天ぷら あらたみかわ','tempura',35.6668,139.7490,4.02,25000,40000,'虎ノ門','「みかわ」の流れをくむ店。新橋・虎ノ門ヒルズから歩ける。'],
+  ['てんぷら 近藤','tempura',35.6705,139.7627,3.97,15000,30000,'銀座','近藤文夫氏の店。野菜の天ぷら、特にさつまいもで有名。'],
+  ['天麩羅 巽','tempura',35.6848,139.7612,3.84,20000,30000,'丸の内','パレスホテル東京6階。大手町駅直結。'],
+  ['天冨良 よこ田','tempura',35.6550,139.7355,3.67,15000,25000,'麻布十番','麻布十番の老舗天ぷら店。'],
+  // うなぎ
+  ['銀座 四代目 高橋屋','unagi',35.6705,139.7695,3.76,6000,12000,'銀座','銀座で食べられるうなぎ百名店。'],
+  ['日本橋いづもや','unagi',35.6855,139.7740,3.67,5000,10000,'日本橋','日本橋の老舗うなぎ店。'],
+  ['神泉いちのや','unagi',35.6570,139.6935,3.67,5000,10000,'神泉（渋谷）','渋谷駅から歩ける老舗のうなぎ店。'],
+  ['五代目 野田岩 麻布飯倉本店','unagi',35.6580,139.7430,3.66,8000,15000,'東麻布','江戸時代から続く老舗。天然うなぎの時期も人気。'],
+  // 焼鳥
+  ['とり茶太郎','yakitori',35.6530,139.7025,4.40,15000,25000,'渋谷・鶯谷町','焼き鳥をコース料理として組み立てる名店。紀州備長炭で部位ごとに火入れを調整。'],
+  ['YAKITORI 燃 es','yakitori',35.6615,139.7295,4.27,20000,30000,'六本木','ワインと合わせる焼鳥コース。予約困難。'],
+  ['鍈輝','yakitori',35.6450,139.7115,4.25,15000,25000,'恵比寿','恵比寿の焼鳥百名店トップクラス。'],
+  ['酉囃子','yakitori',35.6555,139.7365,4.11,12000,20000,'麻布十番','麻布十番の高評価焼鳥。'],
+  ['炭焼 TORI8','yakitori',35.6830,139.7760,4.08,12000,20000,'日本橋','日本橋の高評価焼鳥。'],
+  ['おみ乃 椿','yakitori',35.6765,139.7700,4.00,12000,20000,'京橋','押上「おみ乃」の系列。東京駅から徒歩圏。'],
+  ['焼鳥 篠原','yakitori',35.6595,139.7240,3.93,12000,20000,'西麻布','西麻布の焼鳥百名店。'],
+  ['鳥さわ22','yakitori',35.6588,139.7228,3.83,10000,18000,'西麻布','亀戸「鳥さわ」の系列店。'],
+  ['鳥おか','yakitori',35.6602,139.7400,3.75,10000,18000,'麻布台','麻布台の焼鳥百名店。'],
+  ['床島','yakitori',35.6428,139.6715,3.73,6000,10000,'三軒茶屋','三軒茶屋の焼鳥百名店。地元客も多い。'],
+  ['とり澤','yakitori',35.6625,139.7325,3.73,10000,18000,'六本木','六本木の焼鳥百名店。'],
+  ['焼鳥 ひら野','yakitori',35.6710,139.7640,3.72,10000,18000,'銀座','銀座の焼鳥百名店。'],
+  ['三政','yakitori',35.6660,139.7590,3.67,5000,9000,'新橋','新橋らしい焼鳥百名店。比較的手頃。'],
+  ['喜鈴','yakitori',35.6485,139.7065,3.67,6000,10000,'恵比寿西','恵比寿の焼鳥百名店。'],
+  // 焼肉
+  ['YORONIKU TOKYO 麻布台ヒルズ','yakiniku',35.6607,139.7410,4.34,25000,40000,'麻布台','「よろにく」の麻布台ヒルズ店。コース仕立ての焼肉。'],
+  ['蕃 YORONIKU','yakiniku',35.6475,139.7125,4.23,20000,35000,'恵比寿','「よろにく」系列の恵比寿店。予約困難。'],
+  ['炭火焼 ゆうじ','yakiniku',35.6612,139.6972,4.16,8000,15000,'渋谷・宇田川町','ホルモンと希少部位で知られる渋谷の予約困難店。'],
+  ['USHIGORO S. 銀座','yakiniku',35.6698,139.7655,3.98,20000,30000,'銀座','黒毛和牛のコース焼肉。'],
+  ['USHIGORO S. 西麻布','yakiniku',35.6597,139.7250,3.86,20000,30000,'西麻布','黒毛和牛のコース焼肉。'],
+  ['西麻布 焼肉 X','yakiniku',35.6590,139.7245,3.81,15000,25000,'西麻布','西麻布の焼肉百名店。'],
+  ['焼肉 銀座コバウ','yakiniku',35.6715,139.7640,3.75,8000,15000,'銀座','銀座の老舗焼肉。'],
+  ['三宿トラジ','yakiniku',35.6495,139.6830,3.74,8000,15000,'三宿','三軒茶屋・池尻大橋から歩ける焼肉百名店。'],
+  ['銀座 ちかみつ','yakiniku',35.6720,139.7650,3.71,15000,25000,'銀座','銀座の焼肉百名店。'],
+  ['代官山 焼肉かねこ','yakiniku',35.6485,139.7040,3.70,10000,18000,'代官山','代官山の焼肉百名店。'],
+  ['神泉ホルモン 三百屋','yakiniku',35.6565,139.6940,3.60,4000,7000,'神泉（渋谷）','手頃なホルモン焼き。予約はお早めに。'],
+  // フレンチ
+  ['銀座 大石','french',35.6725,139.7662,4.46,30000,45000,'銀座','大石義和氏の店。フレンチ百名店の最上位クラス。'],
+  ["レフェルヴェソンス",'french',35.6555,139.7215,4.46,40000,60000,'西麻布','生江史伸氏の店。季節と生産者を軸にした料理とサステナビリティへの取り組みで知られる。','https://www.leffervescence.jp/'],
+  ['グルマンディーズ','french',35.6590,139.7255,4.44,30000,45000,'西麻布','西麻布の高評価フレンチ。'],
+  ['SÉZANNE','french',35.6795,139.7668,4.42,40000,60000,'丸の内','フォーシーズンズホテル丸の内 東京内。ダニエル・カルバート氏の店で、アジアのベストレストラン50の1位（2024年）。','https://www.fourseasons.com/tokyo/dining/restaurants/sezanne/'],
+  ['ロオジエ','french',35.6693,139.7617,4.40,40000,60000,'銀座','資生堂が営む銀座のグランメゾン。'],
+  ['エスキス','french',35.6720,139.7650,4.28,30000,45000,'銀座','リオネル・ベカ氏の銀座のフレンチ。'],
+  ['レ セゾン','french',35.6725,139.7580,4.28,30000,50000,'日比谷','帝国ホテル東京内。ティエリー・ヴォワザン氏の店。'],
+  ['アピシウス','french',35.6745,139.7625,4.26,30000,45000,'有楽町','長い歴史を持つ本格クラシックフレンチ。'],
+  ['ラチュレ','french',35.6605,139.7050,4.24,20000,35000,'渋谷','ジビエ料理で知られる室田拓人氏の店。'],
+  ['Florilège','french',35.6607,139.7418,4.18,40000,55000,'麻布台ヒルズ','川手寛康氏の店。カウンター越しの劇場型フレンチ。'],
+  ['レストラン ラフィナージュ','french',35.6690,139.7645,4.13,25000,40000,'銀座','銀座のクラシックフレンチ。'],
+  ['銀座 レカン','french',35.6712,139.7650,4.15,25000,40000,'銀座','銀座の老舗グランメゾン。'],
+  ['jinen.','french',35.6560,139.6975,4.09,20000,35000,'南平台（渋谷）','渋谷の高評価フレンチ。'],
+  ['エディション・コウジ シモムラ','french',35.6630,139.7340,4.08,30000,45000,'六本木','下村浩司氏の店。'],
+  ['モノリス','french',35.6598,139.7045,4.08,15000,30000,'渋谷','渋谷二丁目の高評価フレンチ。'],
+  ['recte','french',35.6485,139.7050,4.07,20000,35000,'恵比寿西・代官山','代官山の高評価フレンチ。'],
+  ['ドミニク・ブシェ トーキョー','french',35.6695,139.7640,4.05,25000,40000,'銀座','パリの名シェフ、ドミニク・ブシェ氏の東京店。'],
+  ['レストラン リューズ','french',35.6640,139.7355,4.01,25000,40000,'六本木','飯塚隆太氏の店。'],
+  ['ラトリエ ドゥ ジョエル・ロブション','french',35.6600,139.7290,3.94,20000,35000,'六本木ヒルズ','カウンター形式のロブション。','https://www.robuchon.jp/'],
+  ['エステール by アラン・デュカス','french',35.6850,139.7613,3.93,25000,40000,'丸の内','パレスホテル東京内。'],
+  ['レストラン ラ フィネス','french',35.6655,139.7575,3.89,25000,40000,'新橋','新橋の高評価フレンチ。'],
+  // イタリアン・ピッツァ
+  ['ペレグリーノ','italian',35.6455,139.7130,4.37,30000,45000,'恵比寿','イタリアン百名店で最上位クラスの予約困難店。'],
+  ['TACUBO','italian',35.6490,139.7050,4.35,25000,40000,'代官山','田窪大祐氏の薪火イタリアン。'],
+  ['ザ ピッツァバー ON 38TH','italian',35.6868,139.7728,4.09,8000,15000,'日本橋','マンダリン オリエンタル 東京38階。ピザ百名店の最上位。'],
+  ['カーザ ヴィニタリア','italian',35.6558,139.7350,3.92,15000,25000,'麻布十番','麻布十番の老舗イタリアン。'],
+  ['ペペロッソ','italian',35.6598,139.6665,3.80,8000,15000,'下北沢','下北沢エリアの人気トラットリア。'],
+  ['トラットリア ピッツェリア ラルテ','italian',35.6425,139.6695,3.76,5000,10000,'三軒茶屋','三軒茶屋駅南口から徒歩2分。ピザ百名店の常連。'],
+  ['SAVOY 麻布十番','italian',35.6552,139.7362,3.75,3000,6000,'麻布十番','ナポリピッツァの人気店。'],
+  ['La Brianza','italian',35.6590,139.7300,3.74,10000,20000,'六本木','六本木ヒルズレジデンスC棟3階。'],
+  ['FARO','italian',35.6688,139.7618,3.73,20000,35000,'銀座','資生堂のイタリアン。'],
+  ["Pizza 4P's 麻布台ヒルズ",'italian',35.6610,139.7412,3.73,3000,6000,'麻布台','ベトナム発のピッツァ店。','https://pizza4ps.com/'],
+  ['グッチ オステリア ダ マッシモ ボットゥーラ','italian',35.6700,139.7620,3.72,15000,30000,'銀座','グッチ銀座内のレストラン。'],
+  ['pizza marumo','italian',35.6440,139.7090,3.69,3000,6000,'恵比寿南','恵比寿のピザ百名店。'],
+  ['ナポリスタカ','italian',35.6385,139.6620,3.66,3000,6000,'上馬（三軒茶屋）','三軒茶屋から歩けるピザ百名店。'],
+  // ラーメン
+  ['銀座 八五','ramen',35.6700,139.7690,3.90,1500,2500,'東銀座','元フレンチ料理人による上品な中華そば。行列必至。'],
+  ['入鹿TOKYO 六本木','ramen',35.6628,139.7340,3.85,1200,2000,'六本木','六本木のラーメン百名店。'],
+  ['燎','ramen',35.6725,139.7745,3.82,1000,1800,'新富町','銀座の東、新富町のラーメン百名店。'],
+  ['麺や 七彩','ramen',35.6760,139.7760,3.78,1000,1800,'八丁堀','手打ち麺の人気店。'],
+  ['麺処 銀笹','ramen',35.6680,139.7605,3.78,1000,1800,'銀座','鯛だしの塩ラーメンで知られる。'],
+  ['六厘舎 東京駅','ramen',35.6800,139.7680,3.77,1000,1800,'東京駅','東京ラーメンストリート内。濃厚魚介つけ麺の代表格。'],
+  ['はやし','ramen',35.6585,139.6975,3.77,1000,1500,'渋谷・道玄坂','昼のみ営業の渋谷の人気店。'],
+  // カレー（スコア未確認）
+  ['旧ヤム邸 シモキタ荘','curry',35.6605,139.6690,null,1500,2500,'下北沢','大阪発のスパイスカレー。カレー TOKYO 百名店 2026 選出。'],
+  ['Curry Spice Gelateria KALPASI','curry',35.6620,139.6670,null,2000,4000,'下北沢','スパイスカレーとジェラート。カレー TOKYO 百名店 2026 選出。'],
+  ['シバカリーワラ','curry',35.6445,139.6710,null,1500,2500,'三軒茶屋','三軒茶屋のインドカレー。カレー百名店 選出。'],
+
+  // ===== 追加エリア =====
+  // 新宿
+  ['Katsuプリポー','katsu',35.6925,139.7040,3.87,5000,8000,'新宿三丁目','外はサクッと中はジューシーなとんかつ。とんかつ百名店。'],
+  ['Il Lato','italian',35.6900,139.7055,3.88,5000,10000,'新宿三丁目','食材の良さを前面に出すイタリアン。新宿エリアのイタリアン百名店。'],
+  ['麺屋 翔 本店','ramen',35.6960,139.6960,3.77,1000,2000,'西新宿','鶏白湯系のクリーミーなスープで人気。'],
+  ['金色不如帰','ramen',35.6875,139.7115,null,1200,2000,'新宿御苑前','蛤だしの醤油そば。ミシュランガイド掲載歴あり。'],
+  ['道しるべ','yakitori',35.6955,139.7010,3.71,4000,6000,'歌舞伎町','珍しい部位も揃う焼鳥百名店。価格は手頃。'],
+  ['Pizzeria LUMEN','italian',35.6950,139.7030,3.68,3000,6000,'歌舞伎町','新宿のピザ百名店。'],
+  ['ハンバーグ ウィル','katsu',35.6880,139.7110,3.68,2000,3500,'新宿御苑前','ハンバーグの洋食百名店。'],
+  ['seiohtei 新宿店','katsu',35.6912,139.7045,3.55,2000,4000,'新宿三丁目','洋食百名店。'],
+  ['エピタフカレー','curry',35.6910,139.7050,null,1500,2500,'新宿三丁目','濃厚なルーで知られるカレー百名店。'],
+  // 池袋
+  ['かぶと','unagi',35.7320,139.7085,4.42,15000,20000,'池袋','食べログのうなぎで長年全国トップクラス。骨以外を使い切るうなぎ串焼きのコース。'],
+  ['ジャパニーズ ラーメン 五感','ramen',35.7300,139.7185,3.96,1000,2000,'東池袋','地鶏と貝のだしに醤油を合わせた一杯。池袋のラーメン百名店。'],
+  ['創作麺工房 鳴龍','ramen',35.7285,139.7300,3.87,1000,2000,'南大塚','担担麺で知られ、ミシュラン一つ星を獲得したこともある店。大塚駅が最寄り。'],
+  ['PIZZA BORSA','italian',35.7300,139.7050,3.71,3000,5000,'西池袋','池袋のピザ百名店。'],
+  // 浅草・上野（下町）
+  ['ナベノ-イズム','french',35.7065,139.7975,4.19,30000,45000,'駒形（浅草）','ジョエル・ロブション出身の渡辺雄一郎氏の店。隅田川を望む、和の食材を使ったフレンチ。'],
+  ['オマージュ','french',35.7160,139.7960,4.12,20000,30000,'浅草','荒井昇氏の店。浅草で長く愛される正統派フレンチ。'],
+  ['nacol','italian',35.7105,139.7910,4.10,15000,25000,'田原町（浅草）','地方の食材を使ったモダンなイタリアン。2025年に百名店入り。'],
+  ['鮨 奥','sushi',35.7140,139.7955,3.96,20000,30000,'浅草','8席のカウンター。熟成や炙りを使った握り。'],
+  ['紀文寿司','sushi',35.7130,139.7940,3.69,5000,10000,'浅草','ランチのちらしなど気軽に使える浅草の老舗寿司。'],
+  ['麺 みつヰ','ramen',35.7075,139.7920,3.83,1000,1500,'寿（蔵前）','無化調の澄んだ鶏スープ。'],
+  ['らーめん改','ramen',35.7040,139.7910,3.78,1000,1500,'蔵前','蔵前のラーメン百名店。'],
+  ['ヨシカミ','katsu',35.7125,139.7955,3.72,3000,5000,'浅草','ハヤシライスやオムライスで知られる浅草の老舗洋食。'],
+  ['グリル グランド','katsu',35.7160,139.7930,3.72,3000,6000,'浅草','ヒレカツやビーフシチューの老舗洋食。'],
+  ['とんかつ ゆたか','katsu',35.7130,139.7925,3.65,2000,3000,'浅草','浅草のとんかつ百名店。'],
+  ['本とさや','yakiniku',35.7150,139.7930,3.72,6000,10000,'浅草','赤身と塩タンを炭火で。浅草の焼肉百名店。'],
+  ['初小川','unagi',35.7100,139.7940,3.72,5000,8000,'浅草','炭火焼きと継ぎ足しのタレの老舗うなぎ店。'],
+  ['入谷鬼子母神門前のだや','unagi',35.7200,139.7850,3.93,5000,10000,'入谷（上野）','入谷の人気うなぎ店。'],
+  ['ぽん多本家','katsu',35.7085,139.7740,3.77,4000,6000,'上野・御徒町','カツレツで知られる老舗洋食。'],
+  ['レストラン香味屋','katsu',35.7215,139.7840,3.83,4000,7000,'根岸（鶯谷）','メンチカツやビーフシチューの老舗洋食。'],
+  ['黒船亭','katsu',35.7105,139.7735,3.65,3000,5000,'上野','上野の老舗洋食。'],
+  ['焼肉 鶯谷園','yakiniku',35.7215,139.7780,3.83,5000,9000,'鶯谷','鶯谷の焼肉百名店。'],
+  ['麺処 晴','ramen',35.7210,139.7840,3.78,1000,1500,'入谷','入谷のラーメン百名店。'],
+  ['KOTARO Hasegawa DOWNTOWN CUISINE','french',35.7050,139.7780,3.80,10000,20000,'御徒町','親しみやすい下町のフレンチ。'],
+  // 人形町・門前仲町
+  ['礒田','washoku',35.6855,139.7830,4.36,30000,40000,'人形町','人形町の日本料理百名店。'],
+  ['川田','washoku',35.6865,139.7815,3.93,20000,30000,'人形町','人形町の日本料理百名店。'],
+  ['江戸前晋作','tempura',35.6870,139.7835,4.03,20000,30000,'人形町','海老・キス・椎茸などで素材の持ち味を引き出す江戸前天ぷら。'],
+  ['かつ好','katsu',35.6860,139.7815,3.74,2500,4000,'人形町','人形町のとんかつ百名店。'],
+  ['アン ファス','french',35.6858,139.7840,3.79,10000,20000,'人形町','人形町のフレンチ百名店。'],
+  ["L'appartamento di NAOKI",'italian',35.6868,139.7805,3.76,10000,20000,'人形町','人形町のイタリアン百名店。'],
+  ['みかわ 是山居','tempura',35.6755,139.7955,4.12,30000,45000,'門前仲町','天ぷらの名人・早乙女哲哉氏の店。'],
+  ['渡辺料理店','french',35.6715,139.7985,4.15,25000,35000,'門前仲町','深川のフレンチ百名店。'],
+  ['焼肉 静龍苑','yakiniku',35.6720,139.7960,4.30,8000,15000,'門前仲町','下町の予約困難な焼肉店。'],
+  ['こうかいぼう','ramen',35.6800,139.7975,3.79,1000,1500,'深川','深川のラーメン百名店。'],
+  // 中目黒・目黒・学芸大学・自由が丘（目黒区）
+  ['鮨 尚充','sushi',35.6475,139.6940,4.44,30000,45000,'青葉台（中目黒）','目黒区で屈指の評価の寿司店。'],
+  ['メグリヴァ','italian',35.6425,139.6985,4.31,15000,25000,'中目黒','中目黒のイタリアン百名店、上位の評価。'],
+  ['鮨 つぼみ','sushi',35.6470,139.6900,4.19,25000,40000,'東山（中目黒）','中目黒・池尻大橋エリアの寿司百名店。'],
+  ['炎水','washoku',35.6440,139.6990,4.01,20000,30000,'中目黒','中目黒の日本料理百名店。'],
+  ['ICARO miyamoto','italian',35.6435,139.7000,3.78,15000,25000,'中目黒','中目黒のイタリアン百名店。'],
+  ['とり澤 中目黒','yakitori',35.6450,139.6975,3.77,8000,15000,'上目黒','中目黒の焼鳥百名店。'],
+  ['鳥よし 中目黒','yakitori',35.6448,139.6995,3.75,8000,12000,'上目黒','中目黒の焼鳥百名店。'],
+  ['聖林館','italian',35.6430,139.6975,3.74,3000,5000,'上目黒','中目黒の人気ピッツァ店。'],
+  ['クラフタル','french',35.6480,139.6955,3.74,20000,30000,'青葉台（中目黒）','中目黒のフレンチ百名店。'],
+  ['鳥しき','yakitori',35.6340,139.7165,4.41,10000,15000,'目黒','池川義輝氏の店。東京で最も予約の取りにくい焼鳥の一つ。'],
+  ['らんまる','sushi',35.6320,139.7100,4.06,20000,35000,'下目黒','目黒の寿司百名店。'],
+  ['Ramen Break Beats','ramen',35.6310,139.7070,3.85,1000,1500,'目黒','目黒のラーメン百名店。'],
+  ['えーちゃん食堂','ramen',35.6315,139.7110,3.82,1000,1500,'下目黒','目黒のラーメン百名店。'],
+  ['とんかつ 目黒こがね','katsu',35.6340,139.7175,3.66,2000,4000,'上大崎（目黒）','目黒のとんかつ百名店。'],
+  ['麺処 びぎ屋','ramen',35.6285,139.6860,3.78,1000,1500,'鷹番（学芸大学）','学芸大学のラーメン百名店。'],
+  ['やきとり 右羽。','yakitori',35.6290,139.6845,3.73,6000,10000,'鷹番（学芸大学）','学芸大学の焼鳥百名店。'],
+  ['luogo','italian',35.6075,139.6690,3.99,10000,20000,'自由が丘','自由が丘のイタリアン百名店。'],
+  ['焼鳥 うの','yakitori',35.6055,139.6710,3.79,8000,12000,'奥沢（自由が丘）','自由が丘近くの焼鳥百名店。'],
+  ['尾山台 山田','italian',35.6070,139.6540,3.73,3000,5000,'尾山台','自由が丘から歩けるピザ百名店。'],
+  // 世田谷区
+  ['すし 喜邑','sushi',35.6125,139.6280,4.25,30000,45000,'二子玉川','二子玉川の寿司百名店。都心の名店と並ぶ評価。'],
+  ['前芝料理店','french',35.6110,139.6265,3.74,15000,25000,'二子玉川','二子玉川のフレンチ百名店。'],
+  ['やきとりshira','yakitori',35.6555,139.6535,3.91,8000,12000,'梅ヶ丘','梅ヶ丘の焼鳥百名店。'],
+  ['とんかつ 幻水豚','katsu',35.6432,139.6690,3.62,2000,3500,'三軒茶屋','三軒茶屋のとんかつ百名店。'],
+  // 既存エリアのとんかつ・洋食、恵比寿のロブション
+  ['ガストロノミー ジョエル・ロブション','french',35.6415,139.7135,4.43,40000,60000,'恵比寿ガーデンプレイス','恵比寿ガーデンプレイスのシャトー内にあるグランメゾン。','https://www.robuchon.jp/'],
+  ['とんかつ いわい','katsu',35.6570,139.7500,3.91,3000,5000,'芝公園','港区のとんかつ百名店で上位の評価。'],
+  ['黒豚とんかつ ほり壱','katsu',35.6655,139.7580,3.73,2000,4000,'新橋','黒豚のとんかつ。'],
+  ['とんかつ檍 銀座店','katsu',35.6700,139.7660,3.72,2000,3500,'銀座','厚切りのロースかつで人気。'],
+  ['にし邑','katsu',35.6710,139.7670,3.71,3000,5000,'銀座','銀座のとんかつ百名店。'],
+  ['資生堂パーラー 銀座本店','katsu',35.6690,139.7613,3.73,5000,10000,'銀座','ミートクロケットやオムライスで知られる老舗洋食。'],
+  ['挽肉と米 渋谷','katsu',35.6590,139.6985,3.70,1500,2500,'渋谷・道玄坂','炭火で焼きたてのハンバーグを順に出すスタイル。行列必至。'],
+];
+
+const toRad = d => d*Math.PI/180;
+function distM(a,b){
+  const R=6371000, dLat=toRad(b.lat-a.lat), dLng=toRad(b.lng-a.lng);
+  const x=Math.sin(dLat/2)**2+Math.cos(toRad(a.lat))*Math.cos(toRad(b.lat))*Math.sin(dLng/2)**2;
+  return 2*R*Math.asin(Math.sqrt(x));
+}
+const RESTAURANTS = RAW.map((r,i)=>{
+  const [n,g,lat,lng,s,bmin,bmax,area,note,url]=r;
+  const o={id:i,n,g,lat,lng,s,bmin,bmax,area,note,url};
+  let best=null;
+  for(const st of STATIONS){const d=distM(o,st); if(!best||d<best.d) best={st,d};}
+  o.st=best.st; o.d=best.d;
+  return o;
+});
+const G = Object.fromEntries(GENRES.map(g=>[g.id,g]));
+const RADIUS = 1600;
+
+const state = {station:'all', genre:'all', budget:'any', sel:null};
+try{
+  const saved=JSON.parse(localStorage.getItem('meiten-filter')||'null');
+  if(saved){ Object.assign(state, {station:saved.station||'all', genre:saved.genre||'all', budget:saved.budget||'any'}); }
+}catch(e){}
+
+function chip(label, pressed, onClick, color){
+  const b=document.createElement('button');
+  b.className='chip'; b.type='button'; b.setAttribute('aria-pressed', pressed);
+  if(color){const d=document.createElement('span'); d.className='dot'; d.style.background=color; b.append(d);}
+  b.append(label); b.onclick=onClick; return b;
+}
+function renderFilters(){
+  const sr=document.getElementById('stationRow'), gr=document.getElementById('genreRow'), br=document.getElementById('budgetRow');
+  [sr,gr,br].forEach(r=>{while(r.children.length>1) r.lastChild.remove();});
+  sr.append(chip('すべて', state.station==='all', ()=>set({station:'all'})));
+  AREAS.forEach(a=>{
+    const grp=document.createElement('span'); grp.className='area-grp';
+    const t=document.createElement('span'); t.className='area-tag'; t.textContent=a.name; grp.append(t);
+    a.ids.forEach(id=>{const s=STATIONS.find(x=>x.id===id); grp.append(chip(s.name, state.station===s.id, ()=>set({station:s.id})));});
+    sr.append(grp);
+  });
+  GENRES.forEach(g=>gr.append(chip(g.name, state.genre===g.id, ()=>set({genre:g.id}), g.id==='all'?null:g.color)));
+  BUDGETS.forEach(b=>br.append(chip(b.name, state.budget===b.id, ()=>set({budget:b.id}))));
+}
+function set(p){
+  Object.assign(state,p,{sel:null});
+  try{localStorage.setItem('meiten-filter',JSON.stringify({station:state.station,genre:state.genre,budget:state.budget}));}catch(e){}
+  render(true);
+}
+const yen = v => '¥'+v.toLocaleString('ja-JP');
+const walk = d => `徒歩約${Math.max(1,Math.round(d/80))}分`;
+
+function currentList(){
+  const bmax=BUDGETS.find(b=>b.id===state.budget).max;
+  return RESTAURANTS
+    .filter(r=>state.genre==='all'||r.g===state.genre)
+    .filter(r=>state.station==='all'||(r.st.id===state.station&&r.d<=RADIUS))
+    .filter(r=>r.bmin<=bmax)
+    .sort((a,b)=>(b.s??0)-(a.s??0))
+    .slice(0,10);
+}
+
+// 地図
+const map=L.map('map',{zoomControl:true}).setView([35.664,139.728],13);
+const dark=()=>{
+  const t=document.documentElement.getAttribute('data-theme');
+  return t? t==='dark' : matchMedia('(prefers-color-scheme: dark)').matches;
+};
+let tiles;
+function setTiles(){
+  if(tiles) map.removeLayer(tiles);
+  tiles=L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{
+    maxZoom:19, className: dark()?'tiles-dark':'tiles-light',
+    attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+  }).addTo(map);
+}
+setTiles();
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change',setTiles);
+
+const stationLayer=L.layerGroup().addTo(map);
+const markerLayer=L.layerGroup().addTo(map);
+let markers={};
+
+function drawStations(){
+  stationLayer.clearLayers();
+  STATIONS.forEach(s=>{
+    const on=state.station===s.id;
+    if(on) L.circle([s.lat,s.lng],{radius:RADIUS,color:'#27466E',weight:1,dashArray:'4 4',fillOpacity:.05}).addTo(stationLayer);
+    L.marker([s.lat,s.lng],{icon:L.divIcon({className:'',html:`<div class="st-label">${s.name}駅</div>`,iconSize:null,iconAnchor:[24,12]}),zIndexOffset:-100})
+      .on('click',()=>set({station:s.id})).addTo(stationLayer);
+  });
+}
+function pinIcon(r,rank,sel){
+  return L.divIcon({className:'',iconSize:[28,28],iconAnchor:[14,28],
+    html:`<div class="pin${sel?' sel':''}" style="background:${G[r.g].color}"><span>${rank}</span></div>`});
+}
+
+function render(fit){
+  renderFilters();
+  const list=currentList();
+  const st=STATIONS.find(s=>s.id===state.station);
+  const g=G[state.genre];
+  document.getElementById('listTitle').textContent=`${st?st.name+'駅周辺':'全駅'}・${g.name} トップ10`;
+  document.getElementById('listCount').textContent=`${list.length}件`;
+  const ol=document.getElementById('list'); ol.innerHTML='';
+  if(!list.length){ol.innerHTML='<li class="empty">この条件に合う店はまだ登録されていません。駅か料理ジャンルを変えてみてください。</li>';}
+  list.forEach((r,i)=>{
+    const li=document.createElement('li'); li.className='item'+(state.sel===r.id?' active':''); li.tabIndex=0;
+    li.innerHTML=`<div class="rank">${i+1}</div>
+      <div><div class="name">${r.n}</div>
+      <div class="meta"><span><span class="dot" style="display:inline-block;background:${G[r.g].color};margin-right:4px"></span>${G[r.g].name}</span><span>${r.st.name}駅 ${walk(r.d)}</span><span>${yen(r.bmin)}〜${yen(r.bmax)}</span></div></div>
+      ${r.s!=null?`<div class="score">${r.s.toFixed(2)}<small>食べログ</small></div>`:`<div class="score na">百名店</div>`}`;
+    li.onclick=()=>select(r.id);
+    li.onkeydown=e=>{if(e.key==='Enter')select(r.id);};
+    ol.append(li);
+  });
+  markerLayer.clearLayers(); markers={};
+  list.forEach((r,i)=>{
+    const m=L.marker([r.lat,r.lng],{icon:pinIcon(r,i+1,state.sel===r.id),zIndexOffset:state.sel===r.id?1000:0})
+      .bindTooltip(`${i+1}. ${r.n}`,{direction:'top',offset:[0,-26]})
+      .on('click',()=>select(r.id)).addTo(markerLayer);
+    markers[r.id]=m;
+  });
+  drawStations();
+  if(fit){
+    const pts=list.map(r=>[r.lat,r.lng]);
+    if(st) pts.push([st.lat,st.lng]);
+    if(pts.length) map.fitBounds(pts,{padding:[40,40],maxZoom:16});
+  }
+  showDetail();
+}
+
+function select(id){
+  state.sel=id; render(false);
+  const r=RESTAURANTS[id]; map.flyTo([r.lat,r.lng],Math.max(map.getZoom(),15),{duration:.6});
+}
+
+function q(s){return encodeURIComponent(s);}
+function showDetail(){
+  const box=document.getElementById('detail'), lv=document.getElementById('listView');
+  if(state.sel==null){box.hidden=true; lv.hidden=false; return;}
+  const r=RESTAURANTS[state.sel], g=G[r.g];
+  const key=`${r.n} ${r.area}`;
+  const gm=`https://www.google.com/maps/search/?api=1&query=${q(key)}`;
+  const official=r.url
+    ?`<a class="btn primary" href="${r.url}" target="_blank" rel="noopener">公式サイトを開く</a>`
+    :`<a class="btn primary" href="https://www.google.com/search?q=${q(r.n+' '+r.area+' 公式サイト')}" target="_blank" rel="noopener">公式サイトを検索</a>`;
+  box.innerHTML=`
+    <button class="back" type="button" id="back">← ランキングに戻る</button>
+    <div class="d-genre"><span class="dot" style="background:${g.color}"></span>${g.name}・${r.area}</div>
+    <h2 class="d-name">${r.n}</h2>
+    <dl class="facts">
+      <dt>評価</dt><dd>${r.s!=null?`<b style="font-size:18px">${r.s.toFixed(2)}</b>（食べログ）`:'スコア未確認'}　<span class="badge">${g.hy}</span></dd>
+      <dt>予算</dt><dd>${yen(r.bmin)}〜${yen(r.bmax)}（夜・1人の目安）</dd>
+      <dt>最寄り</dt><dd>${r.st.name}駅から${walk(r.d)}（直線 ${(r.d/1000).toFixed(1)}km）</dd>
+    </dl>
+    <div class="summary"><h3>評価のポイント</h3><p>${r.note}</p></div>
+    <div class="links">
+      <h3>店舗情報・写真・口コミ</h3>
+      <div class="btns">
+        ${official}
+        <a class="btn" href="${gm}" target="_blank" rel="noopener">Googleマップ<br>（店内写真・口コミ）</a>
+        <a class="btn" href="https://www.google.com/search?tbm=isch&q=${q(r.n+' '+r.area+' 料理')}" target="_blank" rel="noopener">料理の写真</a>
+        <a class="btn" href="https://www.google.com/search?q=${q('site:tabelog.com '+r.n+' '+r.area)}" target="_blank" rel="noopener">食べログ</a>
+        <a class="btn" href="https://www.google.com/search?q=${q('site:retty.me '+r.n)}" target="_blank" rel="noopener">Retty</a>
+        <a class="btn" href="https://www.google.com/search?q=${q('site:restaurant.ikyu.com '+r.n)}" target="_blank" rel="noopener">一休（予約）</a>
+        <a class="btn" href="https://www.google.com/search?q=${q('site:hitosara.com '+r.n)}" target="_blank" rel="noopener">ヒトサラ</a>
+      </div>
+      <p class="fine">写真は著作権の関係でこのページに直接は載せず、各サイトで見られるようにしています。予算は推定値です。訪問前に各サイトで最新の情報を確認してください。</p>
+    </div>`;
+  box.hidden=false; lv.hidden=true; box.scrollTop=0;
+  document.getElementById('back').onclick=()=>{state.sel=null; render(false);};
+}
+
+render(true);
+window.addEventListener('load',()=>{map.invalidateSize(); render(true);});
+new ResizeObserver(()=>map.invalidateSize()).observe(document.getElementById('map'));
+</script>
+</body>
+</html>
