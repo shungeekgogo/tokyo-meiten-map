@@ -92,7 +92,7 @@ ol{list-style:none;margin:0;padding:0 8px 12px}
 .pin.sel{outline:3px solid var(--gold);outline-offset:1px}
 .st-label{background:var(--ink);color:var(--panel);font:700 12px/1 "Zen Kaku Gothic New",sans-serif;padding:4px 7px;border-radius:4px;white-space:nowrap;box-shadow:var(--shadow)}
 .leaflet-container{font-family:inherit}
-.tiles-light{filter:saturate(.55) contrast(.95)}
+.tiles-light{filter:saturate(.8)}
 .tiles-dark{filter:invert(1) hue-rotate(180deg) brightness(.85) saturate(.4)}
 .leaflet-tooltip{font-family:inherit}
 
@@ -462,9 +462,10 @@ const dark=()=>{
 let tiles;
 function setTiles(){
   if(tiles) map.removeLayer(tiles);
-  tiles=L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{
-    maxZoom:19, className: dark()?'tiles-dark':'tiles-light',
-    attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+  // 国土地理院 淡色地図（APIキー不要・出典表示で利用可）
+  tiles=L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/pale/{z}/{x}/{y}.png',{
+    maxZoom:19, maxNativeZoom:18, minZoom:5, className: dark()?'tiles-dark':'tiles-light',
+    attribution:'出典：<a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank" rel="noopener">国土地理院</a>'
   }).addTo(map);
 }
 setTiles();
