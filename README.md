@@ -51,6 +51,24 @@ GitHub Pages など任意の静的ホスティングにそのまま置いても�
 
 写真は著作権に配慮し、アプリ内には掲載せずリンク先で見る形にしています。
 
+## 複数の PC で作業する
+
+このリポジトリを GitHub の正本として、どの PC でも同じファイル構成で作業できるようにしています。
+
+**新しい PC で初めて使うとき（1回だけ）**
+
+```bash
+git clone https://github.com/shungeekgogo/tokyo-meiten-map.git
+```
+
+Windows では Git for Windows（Git Bash を含む）が必要です。以降はこのフォルダで Claude Code を開きます。
+
+**以降は自動**
+
+- Claude Code を開くと、SessionStart フック（`.claude/hooks/sync-from-github.sh`）が GitHub の最新版を確認し、この PC のファイルが古ければ自動で更新します。未コミットの変更がある・競合するなど自動で更新できない場合は、その旨を表示します。
+- 作業を終えるとき、Stop フック（`.claude/hooks/check-pushed.sh`）が未コミット・未 push の変更を検出し、GitHub に push するよう Claude に差し戻します。
+- フックの設定は `.claude/settings.json`（git 管理）にあります。PC ごとの個人設定は `.claude/settings.local.json`（git 管理外）に置きます。
+
 ## データについて（必ずお読みください）
 
 | 項目 | 出典・算出方法 | 精度 |
